@@ -36,25 +36,20 @@ public:
 
     explicit SimpleVector(size_t size)
             : size_(size), capacity_(size), data_(size) {
-        for (size_t i = 0; i < size_; ++i) {
-            data_[i] = Type(); 
-        }
+        std::fill(data_.Get(), data_.Get() + size_, Type());
     }
 
     SimpleVector(size_t size, const Type& value)
             : size_(size), capacity_(size), data_(size) {
-        for (size_t i = 0; i < size; ++i) {
-            data_[i] = value;
-        }
+        std::fill(data_.Get(), data_.Get() + size_, value);
     }
+
 
     SimpleVector(std::initializer_list<Type> init)
             : size_(init.size()), capacity_(init.size()), data_(init.size()) {
-        size_t index = 0;
-        for (const auto& elem : init) {
-            data_[index++] = elem;
-        }
+        std::copy(init.begin(), init.end(), data_.Get());
     }
+
 
     SimpleVector(const SimpleVector& other)
             : size_(other.size_), capacity_(other.capacity_), data_(other.capacity_) {
@@ -69,11 +64,12 @@ public:
         if (this != &rhs) {
             size_ = rhs.size_;
             capacity_ = rhs.capacity_;
-            data_ = ArrayPtr<Type>(rhs.capacity_);
-            std::copy(rhs.data_.Get(), rhs.data_.Get() + rhs.size_, data_.Get());
+            ArrayPtr<Type> tmp(rhs.data_.Get(), rhs.capacity_);
+            tmp.swap(data_);
         }
         return *this;
     }
+
 
     SimpleVector(SimpleVector&& rhs) noexcept
             : size_(rhs.size_), capacity_(rhs.capacity_), data_(std::move(rhs.data_)) {
@@ -83,14 +79,13 @@ public:
 
     SimpleVector& operator=(SimpleVector&& rhs) noexcept {
         if (this != &rhs) {
-            size_ = rhs.size_;
-            capacity_ = rhs.capacity_;
+            size_ = std::exchange(rhs.size_, 0);
+            capacity_ = std::exchange(rhs.capacity_, 0);
             data_ = std::move(rhs.data_);
-            rhs.size_ = 0;
-            rhs.capacity_ = 0;
         }
         return *this;
     }
+
 
     ~SimpleVector() = default;
 
@@ -179,12 +174,10 @@ public:
         size_t index = pos - begin();
         if (size_ >= capacity_) {
             size_t new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
-            ArrayPtr<Type> new_data(new_capacity);
-            std::move(data_.Get(), data_.Get() + index, new_data.Get());
-            new_data[index] = std::move(value);
-            std::move(data_.Get() + index, data_.Get() + size_, new_data.Get() + index + 1);
-            data_ = std::move(new_data);
-            capacity_ = new_capacity;
+            Reserve(new_capacity);
+            std::move(data_.Get(), data_.Get() + index, data_.Get());
+            data_[index] = std::move(value);
+            std::move(data_.Get() + index, data_.Get() + size_, data_.Get() + index + 1);
         } else {
             std::move_backward(data_.Get() + index, data_.Get() + size_, data_.Get() + size_ + 1);
             data_[index] = std::move(value);
@@ -193,10 +186,12 @@ public:
         return data_.Get() + index;
     }
 
+
     void PopBack() noexcept {
-        assert(size_ > 0);
+        assert(!IsEmpty());
         --size_;
     }
+
 
     Iterator Erase(ConstIterator pos) {
         assert(pos >= begin() && pos < end());
@@ -247,13 +242,9 @@ inline bool operator==(const SimpleVector<Type>& lhs, const SimpleVector<Type>& 
     if (lhs.GetSize() != rhs.GetSize()) {
         return false;
     }
-    for (size_t i = 0; i < lhs.GetSize(); ++i) {
-        if (lhs[i] != rhs[i]) {
-            return false;
-        }
-    }
-    return true;
+    return std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
+
 
 template <typename Type>
 inline bool operator!=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
@@ -263,16 +254,9 @@ inline bool operator!=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& 
 
 template <typename Type>
 inline bool operator<(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    size_t min_size = std::min(lhs.GetSize(), rhs.GetSize());
-    for (size_t i = 0; i < min_size; ++i) {
-        if (lhs[i] < rhs[i]) {
-            return true;
-        } else if (lhs[i] > rhs[i]) {
-            return false;
-        }
-    }
-    return lhs.GetSize() < rhs.GetSize();
+    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
+
 
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
