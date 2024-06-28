@@ -62,14 +62,11 @@ public:
 
     SimpleVector& operator=(const SimpleVector& rhs) {
         if (this != &rhs) {
-            size_ = rhs.size_;
-            capacity_ = rhs.capacity_;
-            ArrayPtr<Type> tmp(rhs.data_.Get(), rhs.capacity_);
-            tmp.swap(data_);
+            SimpleVector tmp(rhs);
+            tmp.swap(*this);
         }
         return *this;
     }
-
 
     SimpleVector(SimpleVector&& rhs) noexcept
             : size_(rhs.size_), capacity_(rhs.capacity_), data_(std::move(rhs.data_)) {
@@ -85,7 +82,6 @@ public:
         }
         return *this;
     }
-
 
     ~SimpleVector() = default;
 
